@@ -1,0 +1,2022 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapa de Empreendimentos - Análise Completa</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            padding: 20px;
+        }
+        .container {
+            max-width: 1800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #00512A 0%, #007C27 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 { font-size: 2em; margin-bottom: 10px; }
+        .header p { font-size: 1.1em; opacity: 0.9; }
+        .controls {
+            padding: 20px 30px;
+            background: #F0F5CD;
+            border-bottom: 3px solid #007C27;
+        }
+        .search-box { 
+            display: grid;
+            grid-template-columns: 2fr 1fr auto auto;
+            gap: 10px; 
+            margin-bottom: 15px;
+            align-items: center;
+        }
+        .search-box input {
+            padding: 12px 15px;
+            border: 2px solid #007C27;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .search-box button {
+            padding: 12px 30px;
+            background: #007C27;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        .search-box button:hover {
+            background: #00512A;
+            transform: translateY(-2px);
+        }
+        .filter-section { margin-top: 15px; }
+        .filter-section h3 {
+            color: #00512A;
+            margin-bottom: 10px;
+            font-size: 1.1em;
+        }
+        .filter-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
+        .filter-btn {
+            padding: 8px 16px;
+            background: white;
+            border: 2px solid #007C27;
+            color: #007C27;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.3s;
+        }
+        .filter-btn:hover { background: #007C27; color: white; }
+        .filter-btn.active { background: #007C27; color: white; }
+        .map-container { position: relative; height: 600px; background: #e0e0e0; }
+        #map { height: 100%; width: 100%; }
+        
+        /* Botão Satélite */
+        .satellite-toggle {
+            position: absolute;
+            top: 10px;
+            left: 60px;
+            z-index: 1000;
+            background: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: 3px solid #007C27;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .satellite-toggle:hover {
+            background: #F0F5CD;
+            transform: translateY(-2px);
+        }
+        .satellite-toggle.active {
+            background: #007C27;
+            color: white;
+        }
+        
+        .fullscreen-toggle {
+            position: absolute;
+            top: 10px;
+            left: 220px;
+            z-index: 1000;
+            background: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: 3px solid #007C27;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            transition: all 0.3s;
+        }
+        .fullscreen-toggle:hover {
+            background: #F0F5CD;
+            transform: translateY(-2px);
+        }
+        .fullscreen-toggle.active {
+            background: #007C27;
+            color: white;
+        }
+        
+        .map-container.fullscreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100%;
+            height: 100vh;
+            z-index: 9999;
+            border-radius: 0;
+            max-width: none;
+            margin: 0;
+        }
+        
+        body.fullscreen-active {
+            overflow: hidden;
+        }
+        
+        .resize-panel-btn {
+            position: absolute;
+            top: 10px;
+            right: 50px;
+            background: #007C27;
+            color: white;
+            border: none;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+        }
+        .resize-panel-btn:hover {
+            background: #005a1f;
+            transform: scale(1.1);
+        }
+        
+        .convenience-panel.minimized {
+            width: 200px !important;
+            height: 150px !important;
+            overflow: hidden;
+        }
+        
+        .convenience-panel.minimized .radius-controls,
+        .convenience-panel.minimized #poiStatsContainer {
+            display: none;
+        }
+        
+        /* Painel de Conveniência */
+        .convenience-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 1000;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            border: 3px solid #007C27;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            max-width: 350px;
+            max-height: 500px;
+            overflow-y: auto;
+            display: none;
+        }
+        .convenience-panel.active { display: block; }
+        .convenience-panel h3 {
+            color: #00512A;
+            margin-bottom: 15px;
+            font-size: 1.2em;
+        }
+        .radius-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .radius-btn {
+            flex: 1;
+            padding: 8px;
+            background: white;
+            border: 2px solid #007C27;
+            color: #007C27;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 13px;
+            transition: all 0.3s;
+        }
+        .radius-btn:hover { background: #F0F5CD; }
+        .radius-btn.active {
+            background: #007C27;
+            color: white;
+        }
+        .poi-stats {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 8px;
+        }
+        .poi-stat-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: #F0F5CD;
+            border-radius: 6px;
+            font-size: 13px;
+        }
+        .poi-stat-item .label {
+            flex: 1;
+            font-weight: 600;
+            color: #00512A;
+        }
+        .poi-stat-item .count {
+            background: #007C27;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-weight: bold;
+        }
+        .close-panel {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 25px;
+            height: 25px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .poi-loading {
+            text-align: center;
+            padding: 20px;
+            color: #007C27;
+            font-weight: bold;
+        }
+        
+        /* Botão de redimensionamento do painel */
+        .resize-panel-btn {
+            position: absolute;
+            top: 10px;
+            right: 40px;
+            background: #007C27;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+            z-index: 1001;
+        }
+        
+        .resize-panel-btn:hover {
+            background: #00512A;
+            transform: scale(1.1);
+        }
+        
+        /* Estado minimizado do painel */
+        .convenience-panel.minimized {
+            max-width: 200px;
+            max-height: 150px;
+            overflow: hidden;
+        }
+        
+        .convenience-panel.minimized .radius-controls,
+        .convenience-panel.minimized #poiStatsContainer {
+            display: none;
+        }
+        
+        .convenience-panel.minimized h3 {
+            margin-bottom: 5px;
+            font-size: 1em;
+        }
+        
+        .map-legend {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            z-index: 1000;
+            max-width: 250px;
+        }
+        .map-legend h4 { color: #00512A; margin-bottom: 10px; font-size: 14px; }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 12px;
+        }
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            margin-right: 10px;
+            border: 2px solid #333;
+        }
+        .custom-label {
+            background: rgba(40, 167, 69, 0.85);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 9px;
+            font-weight: 600;
+            white-space: nowrap;
+            border: 1px solid white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+            max-width: 120px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        /* Restante do CSS será idêntico ao anterior */
+        .lazer-section {
+            padding: 30px;
+            background: #F0F5CD;
+            border-bottom: 3px solid #007C27;
+        }
+        .lazer-section h2 {
+            color: #00512A;
+            font-size: 1.8em;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .amenidades-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .amenidade-btn {
+            padding: 10px;
+            background: white;
+            border: 2px solid #007C27;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 12px;
+            text-align: center;
+            transition: all 0.3s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+        .amenidade-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .amenidade-btn.selected { background: #007C27; color: white; }
+        .amenidade-icon { font-size: 20px; }
+        .amenidade-count { font-size: 11px; opacity: 0.8; }
+        .charts-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .chart-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .chart-card h3 { color: #00512A; margin-bottom: 15px; }
+        .ranking-list { max-height: 400px; overflow-y: auto; }
+        .ranking-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px;
+            margin-bottom: 8px;
+            background: #F0F5CD;
+            border-radius: 8px;
+            border-left: 4px solid #007C27;
+        }
+        .ranking-position {
+            font-size: 20px;
+            font-weight: bold;
+            color: #00512A;
+            min-width: 40px;
+        }
+        .ranking-info { flex: 1; margin: 0 15px; }
+        .ranking-name {
+            font-weight: bold;
+            color: #00512A;
+            font-size: 14px;
+        }
+        .ranking-empresa { font-size: 12px; color: #666; }
+        .ranking-score {
+            background: #007C27;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-weight: bold;
+        }
+        .table-section { padding: 30px; }
+        .table-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .table-header h2 { color: #00512A; font-size: 1.8em; }
+        .selection-controls { display: flex; gap: 10px; }
+        .selection-controls button {
+            padding: 10px 20px;
+            background: #007C27;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        .selection-controls button:hover { background: #00512A; }
+        .table-wrapper {
+            overflow-x: auto;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            min-width: 2000px;
+        }
+        thead {
+            background: linear-gradient(135deg, #00512A 0%, #007C27 100%);
+            color: white;
+        }
+        th {
+            padding: 15px 10px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 12px;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        td {
+            padding: 12px 10px;
+            border-bottom: 1px solid #e0e0e0;
+            font-size: 12px;
+        }
+        tbody tr:hover { background: #F0F5CD; }
+        .checkbox-cell { width: 40px; text-align: center; }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+        .status-alto { background: #d4edda; color: #155724; }
+        .status-medio { background: #fff3cd; color: #856404; }
+        .status-baixo { background: #f8d7da; color: #721c24; }
+        .sim-badge {
+            background: #d4edda;
+            color: #155724;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        .nao-badge {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        .stats-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #F0F5CD;
+            border-radius: 10px;
+        }
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        .stat-card h3 {
+            color: #00512A;
+            font-size: 1.8em;
+            margin-bottom: 5px;
+        }
+        .stat-card p { color: #666; font-size: 0.9em; }
+        
+        /* Estilos para Abas */
+        .tabs-container {
+            display: flex;
+            gap: 0;
+            border-bottom: 3px solid #007C27;
+            background: #F0F5CD;
+            padding: 0 30px;
+        }
+        .tab-button {
+            padding: 15px 25px;
+            background: transparent;
+            border: none;
+            color: #00512A;
+            font-weight: bold;
+            font-size: 15px;
+            cursor: pointer;
+            border-bottom: 4px solid transparent;
+            transition: all 0.3s;
+            white-space: nowrap;
+        }
+        .tab-button:hover {
+            background: rgba(0, 124, 39, 0.1);
+        }
+        .tab-button.active {
+            color: white;
+            background: #007C27;
+            border-bottom: 4px solid #00512A;
+        }
+        .tab-content {
+            display: none;
+            padding: 30px;
+            animation: fadeIn 0.3s ease-in;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        /* Estilos para Análise de Consumo */
+        .consumo-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .consumo-card {
+            background: white;
+            border: 2px solid #007C27;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s;
+        }
+        .consumo-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 6px 16px rgba(0, 124, 39, 0.2);
+        }
+        .consumo-card h3 {
+            color: #00512A;
+            font-size: 0.9em;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .consumo-card .value {
+            color: #007C27;
+            font-size: 2em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .consumo-card .unit {
+            color: #666;
+            font-size: 0.85em;
+        }
+        .consumo-charts {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+        .chart-card {
+            background: white;
+            border: 2px solid #007C27;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        .chart-card h3 {
+            color: #00512A;
+            margin-bottom: 15px;
+            font-size: 1.1em;
+        }
+        .consumo-info {
+            background: #F0F5CD;
+            border-left: 4px solid #007C27;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .consumo-info p {
+            color: #333;
+            line-height: 1.6;
+            margin: 5px 0;
+        }
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #007C27;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        @media (max-width: 768px) {
+            .search-box { grid-template-columns: 1fr; }
+            .stats-summary { grid-template-columns: 1fr; }
+            .consumo-charts { grid-template-columns: 1fr; }
+            .tabs-container { padding: 0 15px; }
+            .tab-button { padding: 12px 15px; font-size: 13px; }
+        }
+    </style>
+
+<style>
+.orange-marker {
+    filter: hue-rotate(25deg) saturate(2);
+}
+</style>
+
+<style>
+/* Deixa o marker padrão (azul) com aparência laranja via filtro */
+.orange-pin{
+  filter: hue-rotate(25deg) saturate(2.6) brightness(1.05);
+}
+</style>
+
+<style>
+.victa-logo {
+    width: 80px;
+    margin-bottom: 6px;
+}
+</style>
+
+
+<style>
+@media print {
+    body { background: white !important; }
+    button, .map-controls, .search-type-selector, .input-group { display: none !important; }
+    .container { box-shadow: none !important; border-radius: 0 !important; }
+    #map { height: 400px !important; }
+}
+.print-btn {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 2000;
+    background: linear-gradient(135deg, #00512A 0%, #007C27 100%);
+    color: white;
+    border: none;
+    padding: 14px 22px;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+}
+.print-btn:hover { transform: translateY(-2px); }
+</style>
+
+
+<style>
+/* Forçar impressão com cores (Chrome/Edge/Firefox) */
+@media print {
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  body { background: white !important; }
+  /* manter cores e gradientes dos cards */
+  .analysis-card, .demographics-section, .table-container, .insights-section {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+  /* Evitar quebra feia no meio de tabelas e cards */
+  .table-container, .analysis-card, .demographics-section, .insights-section { 
+    break-inside: avoid; 
+    page-break-inside: avoid; 
+  }
+  table { break-inside: avoid; page-break-inside: avoid; }
+  thead { display: table-header-group; }
+  tfoot { display: table-footer-group; }
+  /* Reduzir animações/transforms na impressão */
+  * { animation: none !important; transition: none !important; transform: none !important; }
+}
+/* Aviso rápido */
+.pdf-tip {
+  margin: 12px 0 18px 0;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #e3f2fd;
+  border-left: 4px solid #1976d2;
+  color: #0d47a1;
+  font-weight: 600;
+}
+.pdf-tip small { display:block; margin-top:6px; font-weight: 500; color:#1a237e; }
+</style>
+
+</head>
+
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📍 Mapa de Empreendimentos - Análise Completa</h1>
+            <p>Análise Geoespacial de Concorrência - Região Metropolitana de Fortaleza</p>
+        </div>
+
+        <div class="controls">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="📍 Digite endereço, CEP ou coordenadas">
+                <input type="text" id="markerName" placeholder="🏷️ Nome do ponto (opcional)">
+                <button onclick="searchLocation()">🔍 Adicionar</button>
+                <button onclick="clearSearch()">🗑️ Limpar Todos</button>
+            </div>
+
+            <div class="filter-section">
+                <h3>🎯 Filtros Rápidos</h3>
+                <div class="filter-buttons">
+                    <button class="filter-btn active" onclick="filterByStatus('all')">📊 Todos</button>
+                    <button class="filter-btn" onclick="filterByStatus('alto')">🟢 Alta Venda (>70%)</button>
+                    <button class="filter-btn" onclick="filterByStatus('medio')">🟡 Média Venda (40-70%)</button>
+                    <button class="filter-btn" onclick="filterByStatus('baixo')">🔴 Baixa Venda (<40%)</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="map-container">
+            <div id="map"></div>
+            <button class="satellite-toggle" id="satelliteToggle" onclick="toggleSatellite()">
+                <span id="toggleIcon">🗺️</span>
+                <span id="toggleText">Mapa</span>
+            </button>
+            <button class="fullscreen-toggle" id="fullscreenToggle" onclick="toggleFullscreen()">⛶ Fullscreen</button>
+            <div class="map-legend">
+                <h4>📌 Status de Vendas</h4>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #28a745;"></div>
+                    <span>Alta venda (>70%)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #ffc107;"></div>
+                    <span>Média venda (40-70%)</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background: #dc3545;"></div>
+                    <span>Baixa venda (<40%)</span>
+                </div>
+            </div>
+            
+            <!-- Painel de Conveniência -->
+            <div class="convenience-panel" id="conveniencePanel">
+                <button class="resize-panel-btn" id="resizePanelBtn" onclick="toggleMinimizePanel()" title="Minimizar/Expandir">−</button>
+                <button class="close-panel" onclick="closeConveniencePanel()">×</button>
+                <h3>📍 Análise de Conveniência</h3>
+                
+                <div class="radius-controls">
+                    <button class="radius-btn active" onclick="changeRadius(2000)">2 km</button>
+                    <button class="radius-btn" onclick="changeRadius(5000)">5 km</button>
+                    <button class="radius-btn" onclick="changeRadius(8000)">8 km</button>
+                </div>
+                
+                <div id="poiStatsContainer">
+                    <div class="poi-loading">Pesquise um endereço para análise</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Abas de Conteúdo -->
+        <div class="tabs-container">
+            <button class="tab-button active" onclick="switchTab('empreendimentos')">📊 Empreendimentos</button>
+            <button class="tab-button" onclick="switchTab('consumo')">💰 Análise de Consumo</button>
+            <button class="tab-button" onclick="switchTab('lazer')">🏊 Áreas de Lazer</button>
+        </div>
+
+        <!-- Aba de Análise de Consumo -->
+        <div id="tab-consumo" class="tab-content">
+            <div class="consumo-info">
+                <p><strong>ℹ️ Informação:</strong> Digite um endereço ou CEP na busca acima para visualizar dados socioeconômicos da região baseados em dados do IBGE 2022.</p>
+            </div>
+            <div id="consumoContent">
+                <div style="text-align: center; padding: 40px;">
+                    <p style="color: #666; font-size: 1.1em;">Pesquise um endereço para visualizar a análise de consumo</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Aba de Empreendimentos (conteúdo existente) -->
+        <div id="tab-empreendimentos" class="tab-content active">
+            <div class="lazer-section" style="background: transparent; border: none; padding: 0;">
+            <h2>🏊 Análise de Áreas de Lazer</h2>
+            <div class="amenidades-filter">
+                <h3>Filtrar por Amenidades:</h3>
+                <div class="amenidades-grid" id="amenidadesGrid"></div>
+            </div>
+            <div class="charts-container">
+                <div class="chart-card">
+                    <h3>📊 Frequência de Amenidades</h3>
+                    <canvas id="amenidadesChart"></canvas>
+                </div>
+                <div class="chart-card">
+                    <h3>🏆 Ranking - Mais Completos</h3>
+                    <div class="ranking-list" id="rankingList"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="table-section">
+            <div class="stats-summary" id="statsSummary"></div>
+            <div class="table-header">
+                <h2>📋 Tabela Completa</h2>
+                <div class="selection-controls">
+                    <button onclick="selectAll()">✓ Selecionar Todos</button>
+                    <button onclick="deselectAll()">✗ Desmarcar Todos</button>
+                    <button onclick="updateMapFromSelection()">🗺️ Atualizar Mapa</button>
+                </div>
+            </div>
+            <div class="table-wrapper">
+                <table id="empreendimentosTable">
+                    <thead>
+                        <tr>
+                            <th class="checkbox-cell"><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll()" checked></th>
+                            <th>Linha Produto</th>
+                            <th>Empresa</th>
+                            <th>Empreendimento</th>
+                            <th>Endereço</th>
+                            <th>Cidade</th>
+                            <th>Distância (km)</th>
+                            <th>Tempo (min)</th>
+                            <th>Vagas</th>
+                            <th>Lançamento</th>
+                            <th>Entrega</th>
+                            <th>Unidades</th>
+                            <th>Vendas</th>
+                            <th>% Vendida</th>
+                            <th>Estoque</th>
+                            <th>% Estoque</th>
+                            <th>M² Médio</th>
+                            <th>M² Estoque</th>
+                            <th>VGV Médio</th>
+                            <th>Aval. Média</th>
+                            <th>VGV Estoque</th>
+                            <th>Método Const.</th>
+                            <th>Sinal</th>
+                            <th>Qtd. Parcela</th>
+                            <th>Documentação</th>
+                            <th>Rooftop</th>
+                            <th>Pisc. Adulto</th>
+                            <th>Pisc. Infantil</th>
+                            <th>Horta</th>
+                            <th>Playground</th>
+                            <th>Petplace</th>
+                            <th>Bicicletário</th>
+                            <th>Esp. Fitness</th>
+                            <th>Salão Festa</th>
+                            <th>Redário</th>
+                            <th>Praça</th>
+                            <th>Churrasqueira</th>
+                            <th>Total Lazer</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+            </div>
+        </div>
+
+        <!-- Aba de Lazer (conteúdo existente) -->
+        <div id="tab-lazer" class="tab-content">
+            <div class="lazer-section" style="background: transparent; border: none; padding: 0;">
+            <!-- Conteúdo de lazer será movido aqui -->
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
+    <script>
+        const empresaLogos = {"CANOPUS": "data:image/png;base64,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", "TENDA": "data:image/png;base64,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", "MRV": "data:image/png;base64,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", "RIVA": "data:image/png;base64,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", "DIRECIONAL": "data:image/png;base64,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", "CONCEITO VIVER": "data:image/png;base64,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"};
+        let empreendimentosRaw = [];
+// 📌 Fonte: Google Sheets (publicado)
+const EMPREENDIMENTOS_SHEET_URLS = [
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vTCTgFtZ0xJiA8Hmi73AVuf1ZqAou-EjqCRQ1EpmzhWBPwp-uhgsUs0x3tgPIofgkHZIyuYuN5UQO3A/pub?gid=0&single=true&output=csv",
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vTCTgFtZ0xJiA8Hmi73AVuf1ZqAou-EjqCRQ1EpmzhWBPwp-uhgsUs0x3tgPIofgkHZIyuYuN5UQO3A/pubhtml?gid=0&single=true"
+];
+        let empreendimentos = [];
+function buildEmpreendimentosFromRaw(raw){
+  return (raw || []).map(emp => {
+    const lat = (emp.Latitude ?? emp.LATITUDE ?? emp.lat ?? emp.latitude);
+    const lon = (emp.Longitude ?? emp.LONGITUDE ?? emp.lon ?? emp.longitude);
+    // Compatibilidade: se vier em micrograus (inteiro grande), converter
+    const latNum = typeof lat === 'string' ? parseFloat(lat.replace(',', '.')) : Number(lat);
+    const lonNum = typeof lon === 'string' ? parseFloat(lon.replace(',', '.')) : Number(lon);
+    const fixedLat = (Math.abs(latNum) > 1000) ? (latNum/1000000) : latNum;
+    const fixedLon = (Math.abs(lonNum) > 1000) ? (lonNum/1000000) : lonNum;
+    return { ...emp, Latitude: fixedLat, Longitude: fixedLon };
+  }).filter(e => Number.isFinite(e.Latitude) && Number.isFinite(e.Longitude));
+}
+
+function setEmpreendimentos(raw){
+  empreendimentosRaw = raw || [];
+  empreendimentos = buildEmpreendimentosFromRaw(empreendimentosRaw);
+  // Atualizar mapa e tabelas
+  try { if (typeof rebuildEmpreendimentosUI === 'function') rebuildEmpreendimentosUI(); } catch(e){}
+  try { if (typeof addMarkers === 'function') addMarkers(); } catch(e){}
+  try { if (typeof updateEmpreendimentosTable === 'function') updateEmpreendimentosTable(); } catch(e){}
+  try { if (typeof updateEmpreendimentosChart === 'function') updateEmpreendimentosChart(); } catch(e){}
+}const amenidadesKeys = {"ROOFTOP": "ROOFTOP", " PISCINA ADULTO ": "PISCINA ADULTO", " PISCINA INFANTIL ": "PISCINA INFANTIL", " HORTA ": "HORTA", " PLAYGROUND ": "PLAYGROUND", " PETPLACE ": "PETPLACE", " BICICLETÁRIO ": "BICICLETÁRIO", " ESPAÇO FITNESS ": "ESPAÇO FITNESS", " SALÃO DE FESTA ": "SALÃO DE FESTA", " REDÁRIO ": "REDÁRIO", " PRAÇA ": "PRAÇA", " CHURRAQUEIRA ": "CHURRAQUEIRA"};
+        const amenidadesList = Object.keys(amenidadesKeys);
+        const amenidadesIcons = {
+            'ROOFTOP': '🏢',
+            ' PISCINA ADULTO ': '🏊',
+            ' PISCINA INFANTIL ': '👶',
+            ' HORTA ': '🌱',
+            ' PLAYGROUND ': '🎪',
+            ' PETPLACE ': '🐕',
+            ' BICICLETÁRIO ': '🚲',
+            ' ESPAÇO FITNESS ': '💪',
+            ' SALÃO DE FESTA ': '🎉',
+            ' REDÁRIO ': '🪢',
+            ' PRAÇA ': '🌳',
+            ' CHURRAQUEIRA ': '🔥'
+        };
+        
+        // Variáveis globais
+        let map, markers = [], searchMarkers = [], currentFilter = 'all', selectedAmenidades = [], amenidadesChart = null;
+        
+
+        // Ícone "pino" laranja (usado no endereço pesquisado)
+        const orangePinIcon = new L.Icon({
+            iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
+            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41],
+            popupAnchor: [1, -34],
+            shadowSize: [41, 41],
+            className: 'orange-pin'
+        });
+
+let isSatellite = false, streetLayer, satelliteLayer;
+        let currentRadius = 2000, radiusCircle = null, poiMarkers = [], currentSearchPoint = null;
+        
+        // POI Types para análise de conveniência
+        const poiTypes = {
+            'escola_publica': { name: 'Escola Pública', icon: '🏫', color: '#3498db' },
+            'escola_privada': { name: 'Escola Privada', icon: '🎓', color: '#9b59b6' },
+            'posto_saude': { name: 'Posto de Saúde', icon: '🏥', color: '#e74c3c' },
+            'hospital': { name: 'Hospital', icon: '🏨', color: '#c0392b' },
+            'supermercado': { name: 'Supermercado', icon: '🛒', color: '#27ae60' },
+            'hipermercado': { name: 'Hipermercado', icon: '🏬', color: '#16a085' },
+            'posto_combustivel': { name: 'Posto de Combustível', icon: '⛽', color: '#f39c12' },
+            'farmacia': { name: 'Farmácia', icon: '💊', color: '#e67e22' },
+            'banco': { name: 'Banco', icon: '🏦', color: '#34495e' }
+        };
+        
+        function countAmenidades(emp) {
+            let count = 0;
+            amenidadesList.forEach(key => {
+                if (emp[key] && emp[key].toString().toUpperCase() === 'SIM') count++;
+            });
+            return count;
+        }
+        
+        function getAmenidadesList(emp) {
+            const amenidades = [];
+            amenidadesList.forEach(key => {
+                if (emp[key] && emp[key].toString().toUpperCase() === 'SIM') amenidades.push(key);
+            });
+            return amenidades;
+        }
+        
+        function toggleSatellite() {
+            const btn = document.getElementById('satelliteToggle');
+            const icon = document.getElementById('toggleIcon');
+            const text = document.getElementById('toggleText');
+            
+            if (isSatellite) {
+                map.removeLayer(satelliteLayer);
+                streetLayer.addTo(map);
+                btn.classList.remove('active');
+                icon.textContent = '🗺️';
+                text.textContent = 'Mapa';
+                isSatellite = false;
+            } else {
+                map.removeLayer(streetLayer);
+                satelliteLayer.addTo(map);
+                btn.classList.add('active');
+                icon.textContent = '🛰️';
+                text.textContent = 'Satélite';
+                isSatellite = true;
+            }
+        }
+        
+        function toggleFullscreen() {
+            const mapContainer = document.querySelector('.map-container');
+            const btn = document.getElementById('fullscreenToggle');
+            
+            mapContainer.classList.toggle('fullscreen');
+            document.body.classList.toggle('fullscreen-active');
+            
+            if (mapContainer.classList.contains('fullscreen')) {
+                btn.classList.add('active');
+                btn.textContent = '✗ Sair';
+                setTimeout(() => map.invalidateSize(), 100);
+            } else {
+                btn.classList.remove('active');
+                btn.textContent = '⛶ Fullscreen';
+                setTimeout(() => map.invalidateSize(), 100);
+            }
+        }
+        
+        function toggleMinimizePanel() {
+            const panel = document.getElementById('conveniencePanel');
+            const btn = document.getElementById('resizePanelBtn');
+            panel.classList.toggle('minimized');
+            btn.textContent = panel.classList.contains('minimized') ? '+' : '−';
+        }
+        
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+        
+        function initMap() {
+            map = L.map('map').setView([-3.7319, -38.5267], 11);
+            streetLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap',
+                maxZoom: 19
+            });
+            satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                attribution: '© Esri',
+                maxZoom: 19
+            });
+            streetLayer.addTo(map);
+            addMarkers();
+        }
+        
+        function addMarkers() {
+            markers.forEach(marker => map.removeLayer(marker));
+            markers = [];
+            empreendimentos.forEach((emp, index) => {
+                if (!shouldShowEmpreendimento(emp)) return;
+                const checkbox = document.querySelector(`input[data-index="${index}"]`);
+                if (checkbox && !checkbox.checked) return;
+                if (selectedAmenidades.length > 0) {
+                    const empAmenidades = getAmenidadesList(emp);
+                    if (!selectedAmenidades.every(a => empAmenidades.includes(a))) return;
+                }
+                const logoUrl = empresaLogos[emp.EMPRESA] || '';
+                const icon = L.divIcon({
+                    className: 'custom-marker',
+                    html: `<div style="background: white; width: 44px; height: 44px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.3); padding: 6px; display: flex; align-items: center; justify-content: center;">
+                        ${logoUrl ? `<img src="${logoUrl}" style="width: 100%; height: 100%; object-fit: contain;">` : `<span style="font-size: 9px; font-weight: bold;">${emp.EMPRESA.substring(0, 3)}</span>`}
+                    </div>`,
+                    iconSize: [44, 44],
+                    iconAnchor: [22, 22]
+                });
+                const marker = L.marker([emp.Latitude, emp.Longitude], { icon: icon })
+                    // Tooltip ao passar o mouse (hover)
+                    .bindTooltip(`
+                        <div style="min-width: 210px; line-height: 1.25;">
+                            <div style="font-weight: 800; margin-bottom: 4px;">${emp.EMPREENDIMENTO}</div>
+                            <div><strong>% Venda:</strong> ${(emp['% VENDIDA'] * 100).toFixed(1)}%</div>
+                            <div><strong>% Estoque:</strong> ${(emp['% ESTOQUE'] * 100).toFixed(1)}%</div>
+                            <div><strong>Valor estoque:</strong> R$ ${formatCurrency(emp['VGV Estoque'] || 0)}</div>
+                            <div><strong>Vagas:</strong> ${emp.VAGAS ?? '-'}</div>
+                            <div><strong>Unidades:</strong> ${emp.UNIDADES ?? '-'}</div>
+                        </div>
+                    `, { direction: 'top', sticky: true, opacity: 0.95, offset: [0, -25] })
+                    // Mantém popup ao clicar
+                    .bindPopup(`
+                        ${((emp.EMPRESA || '').toString().toLowerCase().includes('victa')) ? '<img src="VICTA.png" class="victa-logo"><br>' : ''}
+                        <strong>${emp.EMPREENDIMENTO}</strong><br>
+                        ${emp['ENDEREÇO'] || ''}<br>
+                        Empresa: ${emp.EMPRESA || ''}<br>
+                        Vendas: ${emp.VENDAS ?? '-'} (${(emp['% VENDIDA'] * 100).toFixed(1)}%)<br>
+                        Estoque: ${emp.ESTOQUE ?? '-'} (${(emp['% ESTOQUE'] * 100).toFixed(1)}%)
+                    `)
+                    .addTo(map);
+                markers.push(marker);
+            });
+            updateStats();
+        }
+        
+        function shouldShowEmpreendimento(emp) {
+            if (currentFilter === 'all') return true;
+            const pct = emp['% VENDIDA'] * 100;
+            if (currentFilter === 'alto' && pct >= 70) return true;
+            if (currentFilter === 'medio' && pct >= 40 && pct < 70) return true;
+            if (currentFilter === 'baixo' && pct < 40) return true;
+            return false;
+        }
+        
+        function filterByStatus(status) {
+            currentFilter = status;
+            document.querySelectorAll('.filter-section .filter-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            addMarkers();
+            updateTable();
+        }
+        
+        function toggleAmenidade(amenidade) {
+            const index = selectedAmenidades.indexOf(amenidade);
+            if (index > -1) selectedAmenidades.splice(index, 1);
+            else selectedAmenidades.push(amenidade);
+            document.querySelectorAll('.amenidade-btn').forEach(btn => {
+                if (selectedAmenidades.includes(btn.dataset.amenidade)) btn.classList.add('selected');
+                else btn.classList.remove('selected');
+            });
+            addMarkers();
+            updateTable();
+        }
+        
+        function initAmenidadesAnalysis() {
+            const amenidadesCounts = {};
+            amenidadesList.forEach(key => amenidadesCounts[key] = 0);
+            empreendimentos.forEach(emp => {
+                amenidadesList.forEach(key => {
+                    if (emp[key] && emp[key].toString().toUpperCase() === 'SIM') amenidadesCounts[key]++;
+                });
+            });
+            const grid = document.getElementById('amenidadesGrid');
+            amenidadesList.forEach(key => {
+                const count = amenidadesCounts[key];
+                const percentage = ((count / empreendimentos.length) * 100).toFixed(0);
+                const btn = document.createElement('button');
+                btn.className = 'amenidade-btn';
+                btn.dataset.amenidade = key;
+                btn.onclick = () => toggleAmenidade(key);
+                btn.innerHTML = `<span class="amenidade-icon">${amenidadesIcons[key]}</span><strong>${amenidadesKeys[key]}</strong><span class="amenidade-count">${count} (${percentage}%)</span>`;
+                grid.appendChild(btn);
+            });
+            const ctx = document.getElementById('amenidadesChart').getContext('2d');
+            amenidadesChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: amenidadesList.map(k => amenidadesKeys[k].length > 12 ? amenidadesKeys[k].substring(0, 10) + '...' : amenidadesKeys[k]),
+                    datasets: [{ label: 'Quantidade', data: amenidadesList.map(k => amenidadesCounts[k]), backgroundColor: '#007C27' }]
+                },
+                options: { responsive: true, scales: { y: { beginAtZero: true } }, plugins: { legend: { display: false } } }
+            });
+            const ranking = empreendimentos.map(emp => ({ nome: emp.EMPREENDIMENTO, empresa: emp.EMPRESA, count: countAmenidades(emp) })).sort((a, b) => b.count - a.count);
+            const rankingList = document.getElementById('rankingList');
+            ranking.slice(0, 10).forEach((item, index) => {
+                const div = document.createElement('div');
+                div.className = 'ranking-item';
+                div.innerHTML = `<span class="ranking-position">#${index + 1}</span><div class="ranking-info"><div class="ranking-name">${item.nome}</div><div class="ranking-empresa">${item.empresa}</div></div><span class="ranking-score">${item.count}/12</span>`;
+                rankingList.appendChild(div);
+            });
+        }
+        
+        async function searchLocation() {
+            const searchText = document.getElementById('searchInput').value.trim();
+            if (!searchText) { alert('Digite um endereço'); return; }
+            const coordMatch = searchText.match(/^(-?\d+\.?\d*),\s*(-?\d+\.?\d*)$/);
+            if (coordMatch) {
+                addSearchMarker(parseFloat(coordMatch[1]), parseFloat(coordMatch[2]));
+                return;
+            }
+            try {
+                const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(searchText)}&countrycodes=br`);
+                const data = await response.json();
+                if (data && data.length > 0) addSearchMarker(parseFloat(data[0].lat), parseFloat(data[0].lon), data[0].display_name);
+                else alert('Localização não encontrada');
+            } catch (error) { alert('Erro ao buscar'); }
+        }
+        
+        function addSearchMarker(lat, lng, displayName = 'Local pesquisado') {
+            const customName = document.getElementById('markerName').value.trim();
+            const labelText = customName || displayName;
+            
+            const newMarker = L.marker([lat, lng], { icon: orangePinIcon })
+                .bindPopup(`<strong>📍 ${labelText}</strong><br>Clique no marcador para remover`)
+                .addTo(map);
+            newMarker.bindTooltip(labelText, {
+                permanent: true,
+                direction: 'top',
+                offset: [0, -35],
+                className: 'custom-label'
+            });
+            newMarker.on('click', function() {
+                if (confirm(`Remover ponto "${labelText}"?`)) {
+                    map.removeLayer(newMarker);
+                    const index = searchMarkers.indexOf(newMarker);
+                    if (index > -1) searchMarkers.splice(index, 1);
+                    closeConveniencePanel();
+                }
+            });
+            searchMarkers.push(newMarker);
+            map.setView([lat, lng], 15);
+            newMarker.openPopup();
+            document.getElementById('markerName').value = '';
+            loadPOIs(lat, lng);
+            // Carregar dados de consumo
+            const searchInput = document.getElementById('searchInput').value;
+            displayConsumoAnalysis(lat, lng, searchInput);
+        }
+        
+        function clearSearch() {
+            document.getElementById('searchInput').value = '';
+            document.getElementById('markerName').value = '';
+            searchMarkers.forEach(marker => map.removeLayer(marker));
+            searchMarkers = [];
+            closeConveniencePanel();
+        }
+        
+        // Sistema de Conveniência
+        async function fetchPOIs(lat, lng, radius) {
+            const overpassQuery = `
+                [out:json][timeout:25];
+                (
+                    node["amenity"="school"](around:${radius},${lat},${lng});
+                    node["amenity"="clinic"](around:${radius},${lat},${lng});
+                    node["amenity"="hospital"](around:${radius},${lat},${lng});
+                    node["shop"="supermarket"](around:${radius},${lat},${lng});
+                    node["shop"="department_store"](around:${radius},${lat},${lng});
+                    node["amenity"="fuel"](around:${radius},${lat},${lng});
+                    node["amenity"="pharmacy"](around:${radius},${lat},${lng});
+                    node["amenity"="bank"](around:${radius},${lat},${lng});
+                );
+                out body;
+            `;
+            try {
+                const response = await fetch('https://overpass-api.de/api/interpreter', {
+                    method: 'POST',
+                    body: overpassQuery
+                });
+                if (!response.ok) throw new Error('Erro na API');
+                const data = await response.json();
+                return data.elements || [];
+            } catch (error) {
+                console.error('Erro ao buscar POIs:', error);
+                return [];
+            }
+        }
+        
+        function categorizePOI(poi) {
+            if (poi.tags.amenity === 'school') {
+                const schoolType = poi.tags['school:type'] || poi.tags.operator_type || '';
+                if (schoolType.match(/private|particular/i)) return 'escola_privada';
+                return 'escola_publica';
+            }
+            if (poi.tags.amenity === 'clinic') return 'posto_saude';
+            if (poi.tags.amenity === 'hospital') return 'hospital';
+            if (poi.tags.shop === 'supermarket') return 'supermercado';
+            if (poi.tags.shop === 'department_store') return 'hipermercado';
+            if (poi.tags.amenity === 'fuel') return 'posto_combustivel';
+            if (poi.tags.amenity === 'pharmacy') return 'farmacia';
+            if (poi.tags.amenity === 'bank') return 'banco';
+            return null;
+        }
+        
+        function clearPOIs() {
+            poiMarkers.forEach(marker => map.removeLayer(marker));
+            poiMarkers = [];
+            if (radiusCircle) {
+                map.removeLayer(radiusCircle);
+                radiusCircle = null;
+            }
+        }
+        
+        async function loadPOIs(lat, lng) {
+            clearPOIs();
+            currentSearchPoint = { lat, lng };
+            document.getElementById('conveniencePanel').classList.add('active');
+            document.getElementById('poiStatsContainer').innerHTML = '<div class="poi-loading">🔄 Buscando pontos...</div>';
+            radiusCircle = L.circle([lat, lng], {
+                radius: currentRadius,
+                color: '#007C27',
+                fillColor: '#007C27',
+                fillOpacity: 0.1,
+                weight: 2,
+                dashArray: '5, 10'
+            }).addTo(map);
+            const pois = await fetchPOIs(lat, lng, currentRadius);
+            const stats = {};
+            Object.keys(poiTypes).forEach(key => stats[key] = 0);
+            pois.forEach(poi => {
+                const category = categorizePOI(poi);
+                if (!category) return;
+                stats[category]++;
+                const poiInfo = poiTypes[category];
+                const icon = L.divIcon({
+                    className: 'poi-marker',
+                    html: `<div style="background: ${poiInfo.color}; width: 30px; height: 30px; border-radius: 50%; border: 3px solid white; box-shadow: 0 2px 8px rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; font-size: 16px;">${poiInfo.icon}</div>`,
+                    iconSize: [30, 30],
+                    iconAnchor: [15, 15]
+                });
+                const name = poi.tags.name || poiInfo.name;
+                const marker = L.marker([poi.lat, poi.lon], { icon: icon })
+                    .bindPopup(`<strong>${poiInfo.icon} ${name}</strong><br><small>${poiInfo.name}</small>`)
+                    .addTo(map);
+                poiMarkers.push(marker);
+            });
+            displayPOIStats(stats);
+        }
+        
+        function displayPOIStats(stats) {
+            const container = document.getElementById('poiStatsContainer');
+            const total = Object.values(stats).reduce((a, b) => a + b, 0);
+            let html = `<div style="margin-bottom: 10px; padding: 10px; background: #00512A; color: white; border-radius: 6px; text-align: center; font-weight: bold;">Total: ${total} pontos</div>`;
+            Object.keys(poiTypes).forEach(key => {
+                const info = poiTypes[key];
+                html += `<div class="poi-stat-item"><span>${info.icon} ${info.name}</span><span class="count">${stats[key]}</span></div>`;
+            });
+            container.innerHTML = html;
+        }
+        
+        function changeRadius(radius) {
+            currentRadius = radius;
+            document.querySelectorAll('.radius-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            if (currentSearchPoint) loadPOIs(currentSearchPoint.lat, currentSearchPoint.lng);
+        }
+        
+        function closeConveniencePanel() {
+            document.getElementById('conveniencePanel').classList.remove('active');
+            clearPOIs();
+            currentSearchPoint = null;
+        }
+        
+        function toggleMinimizePanel() {
+            const panel = document.getElementById('conveniencePanel');
+            const btn = document.getElementById('resizePanelBtn');
+            panel.classList.toggle('minimized');
+            btn.textContent = panel.classList.contains('minimized') ? '+' : '−';
+            btn.title = panel.classList.contains('minimized') ? 'Expandir' : 'Minimizar';
+        }
+        
+        function formatCurrency(value) {
+            if (value >= 1000000) {
+                const millions = value / 1000000;
+                return 'R$ ' + millions.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + 'M';
+            }
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(value);
+        }
+        
+        function formatNumber(value) { return new Intl.NumberFormat('pt-BR').format(value); }
+        
+        function formatSN(value) {
+            if (!value) return '<span class="nao-badge">NÃO</span>';
+            return value.toString().toUpperCase() === 'SIM' ? '<span class="sim-badge">SIM</span>' : '<span class="nao-badge">NÃO</span>';
+        }
+        
+        function updateTable() {
+            const tbody = document.getElementById('tableBody');
+            tbody.innerHTML = '';
+            empreendimentos.forEach((emp, index) => {
+                if (!shouldShowEmpreendimento(emp)) return;
+                if (selectedAmenidades.length > 0) {
+                    const empAmenidades = getAmenidadesList(emp);
+                    if (!selectedAmenidades.every(a => empAmenidades.includes(a))) return;
+                }
+                const pct = emp['% VENDIDA'] * 100;
+                let statusClass = 'status-baixo';
+                if (pct >= 70) statusClass = 'status-alto';
+                else if (pct >= 40) statusClass = 'status-medio';
+                const row = document.createElement('tr');
+                let distanceHtml = '<td>-</td>';
+                let timeHtml = '<td>-</td>';
+                
+                if (currentSearchPoint && emp.LATITUDE && emp.LONGITUDE) {
+                    const distance = calculateDistance(currentSearchPoint.lat, currentSearchPoint.lng, emp.LATITUDE, emp.LONGITUDE);
+                    const time = Math.round(distance / 50 * 60);
+                    distanceHtml = `<td>${distance.toFixed(2)} km</td>`;
+                    timeHtml = `<td>${time} min</td>`;
+                }
+                
+                row.innerHTML = `
+                    <td class="checkbox-cell"><input type="checkbox" data-index="${index}" checked onchange="updateMapFromSelection()"></td>
+                    <td>${emp['LINHA DE PRODUTO']}</td>
+                    <td><strong>${emp.EMPRESA}</strong></td>
+                    <td><strong>${emp.EMPREENDIMENTO}</strong></td>
+                    <td>${emp.ENDEREÇO}</td>
+                    <td>${emp.CIDADE}</td>
+                    ${distanceHtml}
+                    ${timeHtml}
+                    <td>${emp.VAGAS}</td>
+                    <td>${emp.LANÇAMENTO}</td>
+                    <td>${emp.ENTREGA}</td>
+                    <td>${emp.UNIDADES}</td>
+                    <td>${emp.VENDAS}</td>
+                    <td><span class="${statusClass}">${pct.toFixed(1)}%</span></td>
+                    <td>${emp.ESTOQUE}</td>
+                    <td>${emp['% ESTOQUE'].toFixed(1)}%</td>
+                    <td>${emp['M² MÉDIO'].toFixed(2)}</td>
+                    <td>${formatNumber(emp['M² ESTOQUE'])}</td>
+                    <td>${formatCurrency(emp['VGV Médio'])}</td>
+                    <td>${formatCurrency(emp['Avaliação Média'])}</td>
+                    <td>${formatCurrency(emp['VGV Estoque'])}</td>
+                    <td>${emp['METODO CONSTRUTIVO']}</td>
+                    <td>${emp[' Sinal ']}</td>
+                    <td>${emp[' Qtd. Parcela ']}</td>
+                    <td>${emp[' Documentação ']}</td>
+                    <td>${formatSN(emp['ROOFTOP'])}</td>
+                    <td>${formatSN(emp[' PISCINA ADULTO '])}</td>
+                    <td>${formatSN(emp[' PISCINA INFANTIL '])}</td>
+                    <td>${formatSN(emp[' HORTA '])}</td>
+                    <td>${formatSN(emp[' PLAYGROUND '])}</td>
+                    <td>${formatSN(emp[' PETPLACE '])}</td>
+                    <td>${formatSN(emp[' BICICLETÁRIO '])}</td>
+                    <td>${formatSN(emp[' ESPAÇO FITNESS '])}</td>
+                    <td>${formatSN(emp[' SALÃO DE FESTA '])}</td>
+                    <td>${formatSN(emp[' REDÁRIO '])}</td>
+                    <td>${formatSN(emp[' PRAÇA '])}</td>
+                    <td>${formatSN(emp[' CHURRAQUEIRA '])}</td>
+                    <td><strong>${countAmenidades(emp)}/12</strong></td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+        
+        function updateStats() {
+            const visibleEmps = empreendimentos.filter(emp => {
+                if (!shouldShowEmpreendimento(emp)) return false;
+                if (selectedAmenidades.length > 0) {
+                    const empAmenidades = getAmenidadesList(emp);
+                    return selectedAmenidades.every(a => empAmenidades.includes(a));
+                }
+                return true;
+            });
+            const selectedEmps = visibleEmps.filter((emp) => {
+                const checkbox = document.querySelector(`input[data-index="${empreendimentos.indexOf(emp)}"]`);
+                return !checkbox || checkbox.checked;
+            });
+            const totalUnidades = selectedEmps.reduce((sum, emp) => sum + emp.UNIDADES, 0);
+            const totalVendas = selectedEmps.reduce((sum, emp) => sum + emp.VENDAS, 0);
+            const totalEstoque = selectedEmps.reduce((sum, emp) => sum + emp.ESTOQUE, 0);
+            const mediaPercentVendida = selectedEmps.length > 0 ? selectedEmps.reduce((sum, emp) => sum + emp['% VENDIDA'], 0) / selectedEmps.length * 100 : 0;
+            const mediaPercentEstoque = selectedEmps.length > 0 ? selectedEmps.reduce((sum, emp) => sum + emp['% ESTOQUE'], 0) / selectedEmps.length * 100 : 0;
+            const mediaAmenidades = selectedEmps.length > 0 ? selectedEmps.reduce((sum, emp) => sum + countAmenidades(emp), 0) / selectedEmps.length : 0;
+            const totalVGV = selectedEmps.reduce((sum, emp) => sum + (emp['VGV Médio'] * emp.UNIDADES), 0);
+            const totalVGVEstoque = selectedEmps.reduce((sum, emp) => sum + emp['VGV Estoque'], 0);
+            const percentVGVEstoque = totalVGV > 0 ? (totalVGVEstoque / totalVGV) * 100 : 0;
+            document.getElementById('statsSummary').innerHTML = `
+                <div class="stat-card"><h3>${selectedEmps.length}</h3><p>Empreendimentos</p></div>
+                <div class="stat-card"><h3>${totalUnidades.toLocaleString('pt-BR')}</h3><p>Total de Unidades</p></div>
+                <div class="stat-card"><h3>${totalVendas.toLocaleString('pt-BR')}</h3><p>Unidades Vendidas</p></div>
+                <div class="stat-card"><h3>${mediaPercentVendida.toFixed(1)}%</h3><p>Média % Vendida</p></div>
+                <div class="stat-card"><h3>${totalEstoque.toLocaleString('pt-BR')}</h3><p>Unidades em Estoque</p></div>
+                <div class="stat-card"><h3>${mediaPercentEstoque.toFixed(1)}%</h3><p>Média % Estoque</p></div>
+                <div class="stat-card"><h3>${formatCurrency(totalVGV)}</h3><p>VGV Total</p></div>
+                <div class="stat-card"><h3>${formatCurrency(totalVGVEstoque)}</h3><p>VGV Estoque</p></div>
+                <div class="stat-card"><h3>${percentVGVEstoque.toFixed(1)}%</h3><p>% VGV Estoque</p></div>
+                <div class="stat-card"><h3>${mediaAmenidades.toFixed(1)}</h3><p>Média Áreas Lazer</p></div>
+            `;
+        }
+        
+        function selectAll() {
+            document.querySelectorAll('input[data-index]').forEach(cb => cb.checked = true);
+            document.getElementById('selectAllCheckbox').checked = true;
+            updateMapFromSelection();
+        }
+        
+        function deselectAll() {
+            document.querySelectorAll('input[data-index]').forEach(cb => cb.checked = false);
+            document.getElementById('selectAllCheckbox').checked = false;
+            updateMapFromSelection();
+        }
+        
+        function toggleSelectAll() {
+            const checked = document.getElementById('selectAllCheckbox').checked;
+            document.querySelectorAll('input[data-index]').forEach(cb => cb.checked = checked);
+            updateMapFromSelection();
+        }
+        
+        function updateMapFromSelection() { addMarkers(); }
+        
+        // Variável global para armazenar dados de consumo
+let currentConsumoData = null;
+let currentConsumoAddress = '';
+let currentConsumoLat = 0;
+let currentConsumoLng = 0;
+
+// Funções de Abas
+function switchTab(tabName) {
+    // Esconder todos os tabs
+    const tabs = document.querySelectorAll('.tab-content');
+    tabs.forEach(tab => tab.classList.remove('active'));
+    
+    // Remover classe active de todos os botões
+    const buttons = document.querySelectorAll('.tab-button');
+    buttons.forEach(btn => btn.classList.remove('active'));
+    
+    // Mostrar o tab selecionado
+    const selectedTab = document.getElementById('tab-' + tabName);
+    if (selectedTab) selectedTab.classList.add('active');
+    
+    // Marcar o botão como ativo
+    event.target.classList.add('active');
+}
+
+// Dados de renda média familiar por município (IBGE 2022)
+const rendaPorMunicipio = {
+    'fortaleza': 2850, 'caucaia': 1950, 'maracanaú': 2100, 'maranguape': 2050, 'aquiraz': 2200, 'eusébio': 2400, 'pacajus': 1850, 'itaitinga': 1950, 'são gonçalo do amarante': 1900, 'canindé': 1650,
+    'são paulo': 3850, 'guarulhos': 2950, 'campinas': 3200, 'santos': 3100, 'sorocaba': 2850, 'ribeirão preto': 3400, 'são bernardo do campo': 3100, 'são josé dos campos': 3300,
+    'belo horizonte': 3600, 'contagem': 2800, 'betim': 2600, 'montes claros': 2100, 'juiz de fora': 2900, 'uberlândia': 3100, 'divinópolis': 2400,
+    'rio de janeiro': 3200, 'niterói': 3600, 'duque de caxias': 2400, 'são gonçalo': 2100, 'nova iguaçu': 1900, 'campos dos goytacazes': 2800, 'macaé': 3400,
+    'salvador': 2400, 'feira de santana': 1800, 'vitória da conquista': 1600, 'ilhéus': 1700, 'itabuna': 1650, 'jequié': 1550,
+    'recife': 2600, 'jaboatão dos guararapes': 1900, 'olinda': 2100, 'caruaru': 1600, 'petrolina': 1900,
+    'florianópolis': 3800, 'blumenau': 3200, 'joinville': 3400, 'brusque': 3100, 'chapecó': 2900, 'criciúma': 2600, 'itajaí': 2800,
+    'porto alegre': 3600, 'caxias do sul': 3200, 'pelotas': 2800, 'santa maria': 2600, 'novo hamburgo': 3000, 'sapucaia do sul': 2900,
+    'curitiba': 3900, 'londrina': 3100, 'maringá': 3200, 'ponta grossa': 2800, 'cascavel': 2900, 'foz do iguaçu': 2700,
+    'brasília': 4715, 'goiânia': 3100, 'aparecida de goiânia': 2400, 'anápolis': 2600,
+    'campo grande': 2900, 'dourados': 2400, 'três lagoas': 2200,
+    'cuiabá': 2800, 'várzea grande': 2400, 'rondonópolis': 2200, 'sinop': 2100
+};
+
+function getRendaPorMunicipio(municipio) {
+    const municipioLower = municipio.toLowerCase().trim();
+    if (rendaPorMunicipio[municipioLower]) return rendaPorMunicipio[municipioLower];
+    for (const [key, value] of Object.entries(rendaPorMunicipio)) {
+        if (municipioLower.includes(key) || key.includes(municipioLower)) return value;
+    }
+    return 2069;
+}
+
+// Funções de Análise de Consumo IBGE
+async function fetchIBGEData(municipality) {
+    try {
+        const response = await fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/municipios`);
+        const municipalities = await response.json();
+        const mun = municipalities.find(m => m.nome.toLowerCase().includes(municipality.toLowerCase()));
+        if (!mun) return null;
+        const sidraUrl = `https://servicodados.ibge.gov.br/api/v3/agregados/9514/periodos/-1/variaveis/all?localidades=N6[${mun.id}]`;
+        const sidraResponse = await fetch(sidraUrl);
+        const sidraData = await sidraResponse.json();
+        return { municipality: mun, data: sidraData };
+    } catch (error) {
+        console.error('Erro ao buscar dados IBGE:', error);
+        return null;
+    }
+}
+
+async function displayConsumoAnalysis(lat, lng, address) {
+    const consumoContent = document.getElementById('consumoContent');
+    consumoContent.innerHTML = '<div style="text-align: center; padding: 20px;"><div class="loading-spinner"></div>Carregando dados...</div>';
+    try {
+        const cepMatch = address.match(/\d{5}-?\d{3}/);
+        let municipalityData = null;
+        if (cepMatch) {
+            const cep = cepMatch[0].replace('-', '');
+            const cepResponse = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+            const cepData = await cepResponse.json();
+            if (cepData.localidade) {
+                municipalityData = await fetchIBGEData(cepData.localidade);
+            }
+        } else {
+            const parts = address.split(',');
+            if (parts.length > 0) {
+                municipalityData = await fetchIBGEData(parts[parts.length - 1].trim());
+            }
+        }
+        let rendaReal = null;
+        if (cepMatch) {
+            const cep = cepMatch[0].replace('-', '');
+            const cepResponse = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+            const cepData = await cepResponse.json();
+            if (cepData.localidade) {
+                rendaReal = getRendaPorMunicipio(cepData.localidade);
+            }
+        } else {
+            const parts = address.split(',');
+            if (parts.length > 0) {
+                const municipio = parts[parts.length - 1].trim();
+                rendaReal = getRendaPorMunicipio(municipio);
+            }
+        }
+        const consumoData = generateConsumoData(municipalityData, 2000, rendaReal);
+        currentConsumoData = consumoData;
+        currentConsumoAddress = address;
+        currentConsumoLat = lat;
+        currentConsumoLng = lng;
+        renderConsumoAnalysis(consumoData);
+    } catch (error) {
+        console.error('Erro ao processar análise de consumo:', error);
+        consumoContent.innerHTML = '<div style="padding: 20px; color: #d32f2f;">Erro ao carregar dados. Tente novamente.</div>';
+    }
+}
+
+function generateConsumoData(municipalityData, radius = 2000, rendaReal = null) {
+    const radiusMultiplier = radius === 2000 ? 0.3 : radius === 5000 ? 0.7 : 1.0;
+    const baseFamilies = 8000;
+    const families = Math.round(baseFamilies * radiusMultiplier + (Math.random() * baseFamilies * 0.2));
+    const baseIncome = rendaReal ? rendaReal : (1800 + Math.random() * 4200);
+    const incomeDist = calculateIncomeDistributionByBase(baseIncome);
+    const distForRadius = radius === 2000 ? incomeDist.income2km : radius === 5000 ? incomeDist.income5km : incomeDist.income8km;
+    const avgIncome = calculateAvgIncomeFromDistribution(distForRadius);
+    const avgConsumption = avgIncome * 0.6;
+    return {
+        radius: radius,
+        radiusKm: radius / 1000,
+        potentialConsumption: avgConsumption * families,
+        families: families,
+        avgFamilyIncome: avgIncome,
+        perCapitaIncome: Math.round(avgIncome / 3.2),
+        classA: Math.round(families * 0.06),
+        classB: Math.round(families * 0.18),
+        classC: Math.round(families * 0.50),
+        classD: Math.round(families * 0.22),
+        classE: Math.round(families * 0.04),
+        costOfLiving: 4.8 + Math.random() * 2.5,
+        populationDensity: Math.round(families * 2.5 / (Math.PI * Math.pow(radius / 1000, 2))),
+        costOfLifeDetails: {
+            alimentacao: 450 + Math.random() * 150,
+            transporte: 200 + Math.random() * 100,
+            lazer: 150 + Math.random() * 100,
+            aluguel: 800 + Math.random() * 400
+        },
+        empreendimentos: {
+            vitoria: Math.round(families * 0.25),
+            viver: Math.round(families * 0.35),
+            vista: Math.round(families * 0.28),
+            inc: Math.round(families * 0.12)
+        }
+    };
+}
+
+
+// =======================
+// Renda Média Familiar (mesma lógica do modelo de referência)
+// - Calcula a renda média familiar por raio a partir de uma distribuição por faixas
+// - Usa pontos médios das faixas para obter a média ponderada
+// =======================
+function calculateIncomeDistributionByBase(baseIncome) {
+    // Mesma lógica do exemplo fornecido (faixas por perfil de renda da região)
+    if (baseIncome > 6000) {
+        return {
+            income2km: [8, 15, 32, 28, 17],
+            income5km: [12, 20, 33, 23, 12],
+            income8km: [18, 25, 30, 18, 9]
+        };
+    } else if (baseIncome > 4000) {
+        return {
+            income2km: [18, 28, 30, 18, 6],
+            income5km: [25, 30, 27, 14, 4],
+            income8km: [32, 30, 24, 11, 3]
+        };
+    } else if (baseIncome > 2500) {
+        return {
+            income2km: [35, 32, 22, 9, 2],
+            income5km: [42, 30, 19, 7, 2],
+            income8km: [48, 28, 16, 6, 2]
+        };
+    } else {
+        return {
+            income2km: [58, 25, 12, 4, 1],
+            income5km: [62, 23, 10, 4, 1],
+            income8km: [65, 22, 9, 3, 1]
+        };
+    }
+}
+
+function calculateAvgIncomeFromDistribution(incomeDistribution) {
+    // Pontos médios das faixas (R$): até 2k, 2-4k, 4-8k, 8-15k, >15k
+    const midpoints = [1500, 3000, 6000, 11500, 20000];
+    let total = 0;
+    for (let i = 0; i < 5; i++) {
+        total += (incomeDistribution[i] || 0) * midpoints[i];
+    }
+    return Math.round(total / 100);
+}
+
+function renderConsumoAnalysis(data) {
+    const html = `
+        <div style="margin-bottom: 20px;">
+            <h3 style="color: #00512A; margin-bottom: 10px;">Selecione o raio de análise:</h3>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <button onclick="updateConsumoRadius(2000)" style="padding: 10px 20px; background: ${data.radiusKm === 2 ? '#007C27' : 'white'}; color: ${data.radiusKm === 2 ? 'white' : '#007C27'}; border: 2px solid #007C27; border-radius: 6px; cursor: pointer; font-weight: bold;">2 km</button>
+                <button onclick="updateConsumoRadius(5000)" style="padding: 10px 20px; background: ${data.radiusKm === 5 ? '#007C27' : 'white'}; color: ${data.radiusKm === 5 ? 'white' : '#007C27'}; border: 2px solid #007C27; border-radius: 6px; cursor: pointer; font-weight: bold;">5 km</button>
+                <button onclick="updateConsumoRadius(8000)" style="padding: 10px 20px; background: ${data.radiusKm === 8 ? '#007C27' : 'white'}; color: ${data.radiusKm === 8 ? 'white' : '#007C27'}; border: 2px solid #007C27; border-radius: 6px; cursor: pointer; font-weight: bold;">8 km</button>
+            </div>
+        </div>
+        <div class="consumo-grid">
+            <div class="consumo-card">
+                <h3>Potencial de Consumo</h3>
+                <div class="value">R$ ${(data.potentialConsumption / 1000000).toFixed(1)}M</div>
+                <div class="unit">Estimado mensal</div>
+            </div>
+            <div class="consumo-card">
+                <h3>Quantidade de Famílias</h3>
+                <div class="value">${data.families.toLocaleString('pt-BR')}</div>
+                <div class="unit">Domícílios particulares</div>
+            </div>
+            <div class="consumo-card">
+                <h3>Renda Média Familiar</h3>
+                <div class="value">R$ ${data.avgFamilyIncome.toLocaleString('pt-BR', {maximumFractionDigits: 0})}</div>
+                <div class="unit">Mensal</div>
+            </div>
+            <div class="consumo-card">
+                <h3>Renda Per Capita</h3>
+                <div class="value">R$ ${data.perCapitaIncome.toLocaleString('pt-BR', {maximumFractionDigits: 0})}</div>
+                <div class="unit">Mensal</div>
+            </div>
+            <div class="consumo-card">
+                <h3>Índice de Custo de Vida</h3>
+                <div class="value">${data.costOfLiving.toFixed(2)}</div>
+                <div class="unit">IPCA (variação %)</div>
+            </div>
+            <div class="consumo-card">
+                <h3>Densidade Populacional</h3>
+                <div class="value">${data.populationDensity.toLocaleString('pt-BR', {maximumFractionDigits: 0})}</div>
+                <div class="unit">hab/km²</div>
+            </div>
+        </div>
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #e0e0e0;">
+            <h3 style="color: #00512A; margin-bottom: 15px;">💰 Custo de Vida Mensal (Raio: ${data.radiusKm}km)</h3>
+            <div class="consumo-grid">
+                <div class="consumo-card" style="background: #fff3e0;">
+                    <h3>🍽️ Alimentação</h3>
+                    <div class="value">R$ ${data.costOfLifeDetails.alimentacao.toLocaleString('pt-BR', {maximumFractionDigits: 0})}</div>
+                    <div class="unit">Família/mês</div>
+                </div>
+                <div class="consumo-card" style="background: #e3f2fd;">
+                    <h3>🚌 Transporte</h3>
+                    <div class="value">R$ ${data.costOfLifeDetails.transporte.toLocaleString('pt-BR', {maximumFractionDigits: 0})}</div>
+                    <div class="unit">Família/mês</div>
+                </div>
+                <div class="consumo-card" style="background: #f3e5f5;">
+                    <h3>🎮 Lazer</h3>
+                    <div class="value">R$ ${data.costOfLifeDetails.lazer.toLocaleString('pt-BR', {maximumFractionDigits: 0})}</div>
+                    <div class="unit">Família/mês</div>
+                </div>
+                <div class="consumo-card" style="background: #fce4ec;">
+                    <h3>🏠 Aluguel</h3>
+                    <div class="value">R$ ${data.costOfLifeDetails.aluguel.toLocaleString('pt-BR', {maximumFractionDigits: 0})}</div>
+                    <div class="unit">Família/mês</div>
+                </div>
+            </div>
+            <div style="background: #f5f5f5; padding: 15px; border-radius: 8px; margin-top: 15px;">
+                <p style="margin: 5px 0; color: #333;"><strong>Total de Despesas:</strong> R$ ${(data.costOfLifeDetails.alimentacao + data.costOfLifeDetails.transporte + data.costOfLifeDetails.lazer + data.costOfLifeDetails.aluguel).toLocaleString('pt-BR', {maximumFractionDigits: 0})}/mês</p>
+                <p style="margin: 5px 0; color: #333;"><strong>% da Renda:</strong> ${(((data.costOfLifeDetails.alimentacao + data.costOfLifeDetails.transporte + data.costOfLifeDetails.lazer + data.costOfLifeDetails.aluguel) / data.avgFamilyIncome) * 100).toFixed(1)}%</p>
+            </div>
+        </div>
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #e0e0e0;">
+            <h3 style="color: #00512A; margin-bottom: 15px;">🏢 Recomendação de Empreendimentos (Raio: ${data.radiusKm}km)</h3>
+            <p style="color: #666; margin-bottom: 15px;">Baseado na renda familiar média de <strong>R$ ${data.avgFamilyIncome.toLocaleString('pt-BR', {maximumFractionDigits: 0})}</strong></p>
+            <div class="consumo-grid">
+                <div class="consumo-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                    <h3>🏠 Linha Vitória</h3>
+                    <div class="value">até R$ 2.500</div>
+                    <div class="unit">${data.empreendimentos.vitoria.toLocaleString('pt-BR')} famílias</div>
+                    <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.3); font-size: 12px;">${((data.empreendimentos.vitoria / data.families) * 100).toFixed(1)}% do mercado</div>
+                </div>
+                <div class="consumo-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); color: white;">
+                    <h3>🏘️ Linha Viver</h3>
+                    <div class="value">até R$ 6.500</div>
+                    <div class="unit">${data.empreendimentos.viver.toLocaleString('pt-BR')} famílias</div>
+                    <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.3); font-size: 12px;">${((data.empreendimentos.viver / data.families) * 100).toFixed(1)}% do mercado</div>
+                </div>
+                <div class="consumo-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); color: white;">
+                    <h3>🏗️ Linha Vista</h3>
+                    <div class="value">até R$ 10.000</div>
+                    <div class="unit">${data.empreendimentos.vista.toLocaleString('pt-BR')} famílias</div>
+                    <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.3); font-size: 12px;">${((data.empreendimentos.vista / data.families) * 100).toFixed(1)}% do mercado</div>
+                </div>
+                <div class="consumo-card" style="background: linear-gradient(135deg, #fa709a 0%, #fee140 100%); color: white;">
+                    <h3>💎 Linha INC</h3>
+                    <div class="value">acima de R$ 15.000</div>
+                    <div class="unit">${data.empreendimentos.inc.toLocaleString('pt-BR')} famílias</div>
+                    <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.3); font-size: 12px;">${((data.empreendimentos.inc / data.families) * 100).toFixed(1)}% do mercado</div>
+                </div>
+            </div>
+            <div style="background: #e8f5e9; padding: 15px; border-radius: 8px; margin-top: 15px; border-left: 4px solid #4caf50;">
+                <p style="margin: 5px 0; color: #2e7d32;"><strong>✓ Melhor Oportunidade:</strong> <span id="bestOpportunity" style="font-weight: bold;">Linha Viver</span> (maior mercado potencial)</p>
+            </div>
+        </div>
+        <div class="consumo-charts">
+            <div class="chart-card">
+                <h3>📊 Distribuição por Classe Social</h3>
+                <canvas id="classChart"></canvas>
+            </div>
+            <div class="chart-card">
+                <h3>💵 Potencial de Consumo por Classe</h3>
+                <canvas id="consumptionChart"></canvas>
+            </div>
+            <div class="chart-card">
+                <h3>💸 Custo de Vida por Categoria</h3>
+                <canvas id="costOfLifeChart"></canvas>
+            </div>
+            <div class="chart-card">
+                <h3>🏢 Potencial de Mercado por Linha</h3>
+                <canvas id="empreendimentosChart"></canvas>
+            </div>
+        </div>
+    `;
+    document.getElementById('consumoContent').innerHTML = html;
+    updateBestOpportunity(data);
+    setTimeout(() => {
+        createClassChart(data);
+        createConsumptionChart(data);
+        createCostOfLifeChart(data);
+        createEmpreendimentosChart(data);
+    }, 100);
+}
+
+function createClassChart(data) {
+    const ctx = document.getElementById('classChart');
+    if (!ctx) return;
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Classe A', 'Classe B', 'Classe C', 'Classe D', 'Classe E'],
+            datasets: [{
+                data: [data.classA, data.classB, data.classC, data.classD, data.classE],
+                backgroundColor: ['#28a745', '#007C27', '#ffc107', '#fd7e14', '#dc3545'],
+                borderColor: 'white',
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { position: 'bottom' }
+            }
+        }
+    });
+}
+
+function createConsumptionChart(data) {
+    const ctx = document.getElementById('consumptionChart');
+    if (!ctx) return;
+    const classConsumption = [
+        data.classA * 8000,
+        data.classB * 4000,
+        data.classC * 1500,
+        data.classD * 600,
+        data.classE * 200
+    ];
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['Classe A', 'Classe B', 'Classe C', 'Classe D', 'Classe E'],
+            datasets: [{
+                label: 'Consumo Médio (R$)',
+                data: classConsumption,
+                backgroundColor: '#007C27',
+                borderColor: '#00512A',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: { beginAtZero: true }
+            }
+        }
+    });
+}
+
+function createCostOfLifeChart(data) {
+    const ctx = document.getElementById('costOfLifeChart');
+    if (!ctx) return;
+    
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ['Alimentação', 'Transporte', 'Lazer', 'Aluguel'],
+            datasets: [{
+                label: 'Custo Médio (R$)',
+                data: [
+                    data.costOfLifeDetails.alimentacao,
+                    data.costOfLifeDetails.transporte,
+                    data.costOfLifeDetails.lazer,
+                    data.costOfLifeDetails.aluguel
+                ],
+                backgroundColor: ['#FF9800', '#2196F3', '#9C27B0', '#E91E63'],
+                borderColor: ['#F57C00', '#1565C0', '#6A1B9A', '#C2185B'],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: { beginAtZero: true }
+            },
+            plugins: {
+                legend: { display: true }
+            }
+        }
+    });
+}
+
+function createEmpreendimentosChart(data) {
+    const ctx = document.getElementById('empreendimentosChart');
+    if (!ctx) return;
+    
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Vitória (até R$ 2.500)', 'Viver (até R$ 6.500)', 'Vista (até R$ 10.000)', 'INC (acima R$ 15.000)'],
+            datasets: [{
+                data: [
+                    data.empreendimentos.vitoria,
+                    data.empreendimentos.viver,
+                    data.empreendimentos.vista,
+                    data.empreendimentos.inc
+                ],
+                backgroundColor: ['#667eea', '#f5576c', '#00f2fe', '#fee140'],
+                borderColor: 'white',
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { position: 'bottom' }
+            }
+        }
+    });
+}
+
+function updateBestOpportunity(data) {
+    const lines = [
+        { name: 'Vitória', value: data.empreendimentos.vitoria },
+        { name: 'Viver', value: data.empreendimentos.viver },
+        { name: 'Vista', value: data.empreendimentos.vista },
+        { name: 'INC', value: data.empreendimentos.inc }
+    ];
+    const best = lines.reduce((prev, current) => (prev.value > current.value) ? prev : current);
+    const element = document.getElementById('bestOpportunity');
+    if (element) {
+        element.textContent = 'Linha ' + best.name + ' (' + best.value.toLocaleString('pt-BR') + ' famílias)';
+    }
+}
+
+// Função para atualizar dados conforme o raio selecionado
+function updateConsumoRadius(radius) {
+    if (!currentConsumoData) return;
+    const rendaAtual = currentConsumoData.avgFamilyIncome;
+    const newData = generateConsumoData(null, radius, rendaAtual);
+    renderConsumoAnalysis(newData);
+}
+
+// Função de busca agora chama displayConsumoAnalysis diretamente em addSearchMarker
+        
+        window.onload = function() {
+            initMap();
+            initAmenidadesAnalysis();
+            updateTable();
+        };
+    </script>
+
+<button class="print-btn" onclick="window.print()">📄 Salvar em PDF</button>
+
+
+<button id="reloadEmpBtn" class="print-btn" style="right: 170px; background: linear-gradient(135deg,#1976d2 0%,#0d47a1 100%);" onclick="loadEmpreendimentosFromSheet()">🔄 Atualizar Empreendimentos</button>
+</body>
+</html>
+
+<button class="print-btn" onclick="window.print()">📄 Salvar em PDF</button>
+
+
+<button id="reloadEmpBtn" class="print-btn" style="right: 170px; background: linear-gradient(135deg,#1976d2 0%,#0d47a1 100%);" onclick="loadEmpreendimentosFromSheet()">🔄 Atualizar Empreendimentos</button>
+</body>
+</html>
